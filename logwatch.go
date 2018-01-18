@@ -197,10 +197,15 @@ func (o *Observer) log(l *tail.Line, containerID string) error {
 		return o.logRaw(de.Log)
 	}
 
+	level := ze.GetString("level")
+	if level == "info" || level == "debug" {
+		return nil
+	}
+
 	p := raven.Packet{
 		Message: ze.GetString("msg"),
 
-		Level:  raven.Severity(ze.GetString("level")),
+		Level:  raven.Severity(level),
 		Logger: ze.GetString("logger"),
 
 		Platform:   "go",
