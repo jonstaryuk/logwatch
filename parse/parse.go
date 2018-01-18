@@ -23,9 +23,14 @@ func (ze *ZapJSONLogEntry) GetString(key string) string {
 	return str
 }
 
-func (ze *ZapJSONLogEntry) Stacktrace() *raven.Stacktrace {
-	frames := []*raven.StacktraceFrame{}
+func (ze *ZapJSONLogEntry) Stacktrace() (st *raven.Stacktrace) {
+	st = &raven.Stacktrace{Frames: []*raven.StacktraceFrame{}}
+
 	lines := strings.Split(strings.TrimSpace(ze.GetString("stacktrace")), "\n")
+	if len(lines) == 0 || len(lines)%2 == 1 {
+		return
+	}
+
 	for i := 0; i < len(lines); i += 2 {
 		var f raven.StacktraceFrame
 
@@ -47,16 +52,16 @@ func (ze *ZapJSONLogEntry) Stacktrace() *raven.Stacktrace {
 		// f.Filename = path[len(path)-1]
 		f.Filename = sourceinfo[0]
 
-		frames = append(frames, &f)
+		st.Frames = append(st.Frames, &f)
 	}
 
 	// Sentry expects stack frames in reverse order. Reverse the slice.
-	n := len(frames)
+	n := len(st.Frames)
 	for i := 0; i < n/2; i++ {
-		f := frames[i]
-		frames[i] = frames[n-i-1]
-		frames[n-i-1] = f
+		f := st.Frames[i]
+		st.Frames[i] = st.Frames[n-i-1]
+		st.Frames[n-i-1] = f
 	}
 
-	return &raven.Stacktrace{Frames: frames}
+	return
 }
