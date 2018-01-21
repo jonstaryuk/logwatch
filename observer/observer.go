@@ -58,7 +58,7 @@ func New(dir string, sentry *raven.Client, log *zap.SugaredLogger) (*Observer, e
 	for _, file := range files {
 		if file.IsDir() {
 			path := path.Join(dir, file.Name())
-			if err := o.tail(path, 0); err != nil {
+			if err := o.tail(path, 0, false); err != nil {
 				o.Logger.Errorw(err.Error(), "loadingExistingDir", path)
 			}
 		}
@@ -118,7 +118,7 @@ func (o *Observer) observe() {
 			}
 
 			if stat.Mode().IsDir() {
-				if err := o.tail(e.Name, 1*time.Second); err != nil {
+				if err := o.tail(e.Name, time.Second, true); err != nil {
 					o.Logger.Error(err)
 				}
 			}
@@ -131,11 +131,12 @@ func (o *Observer) observe() {
 	}
 }
 
-// tail starts a goroutine that tails the container's JSON log file in the
-// given directory.
-func (o *Observer) tail(dirpath string, wait time.Duration) error {
-	containerID := path.Base(dirpath)
-	logfilename := fmt.Sprintf(path.Join(dirpath, containerID+"-json.log"))
+// tail starts a goroutine that tails the container's JSON logfile in 'dir',
+// waiting 'wait' before attempting to open the logfile. If existing is true,
+// any existing log entries in the file will also be parsed.
+func (o *Observer) tail(dir string, wait time.Duration, existing bool) error {
+	containerID := path.Base(dir)
+	logfilename := fmt.Sprintf(path.Join(dir, containerID+"-json.log"))
 
 	time.Sleep(wait)
 
@@ -150,12 +151,12 @@ func (o *Observer) tail(dirpath string, wait time.Duration) error {
 		f.Close()
 	}
 
-	t, err := tail.TailFile(logfilename, tail.Config{
-		MustExist: true,
-		Follow:    true,
-		ReOpen:    true,
-		// Location:  &tail.SeekInfo{Offset: 0, Whence: os.SEEK_END},
-	})
+	tcfg := tail.Config{MustExist: true, Follow: true, ReOpen: true}
+	if !existing {
+		tcfg.Location = &tail.SeekInfo{Offset: 0, Whence: os.SEEK_END}
+	}
+
+	t, err := tail.TailFile(logfilename, tcfg)
 	if err != nil {
 		return err
 	}
