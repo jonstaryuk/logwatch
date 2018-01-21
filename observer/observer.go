@@ -151,6 +151,8 @@ func (o *Observer) tail(dir string, wait time.Duration, existing bool) error {
 		f.Close()
 	}
 
+	logger := o.Logger.With("logfile", logfilename)
+
 	tcfg := tail.Config{MustExist: true, Follow: true, ReOpen: true}
 	if !existing {
 		tcfg.Location = &tail.SeekInfo{Offset: 0, Whence: os.SEEK_END}
@@ -162,24 +164,24 @@ func (o *Observer) tail(dir string, wait time.Duration, existing bool) error {
 	}
 
 	go func() {
-		o.Logger.Debugf("Tailing %v", logfilename)
+		logger.Debugf("Starting tail")
 
 		for line := range t.Lines {
-			o.Logger.Debugf("Got line: %v", line)
+			logger.Debugf("Got line: %v", line)
 
 			if line.Err != nil {
-				o.Logger.Error(fmt.Errorf("Tailing %v: %v", logfilename, line.Err))
+				logger.Error(line.Err)
 				continue
 			}
 
 			if err := o.record(line, containerID); err != nil {
-				o.Logger.Error(err)
+				logger.Error(err)
 			}
 
-			o.Logger.Debug("Recorded line")
+			logger.Debug("Recorded line")
 		}
 
-		o.Logger.Debug("Done tailing %v", logfilename)
+		logger.Debug("Done tailing")
 		t.Cleanup()
 	}()
 
