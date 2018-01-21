@@ -1,3 +1,5 @@
+// Package observer provides tools for collecting and parsing logs written by
+// Docker's `json-file` logging driver.
 package observer // import "github.com/jonstaryuk/logwatch/observer"
 
 import (
@@ -56,8 +58,8 @@ func New(dir string, sentry *raven.Client, log *zap.SugaredLogger) (*Observer, e
 	for _, file := range files {
 		if file.IsDir() {
 			path := path.Join(dir, file.Name())
-			if err := o.tail(path); err != nil {
-				o.Logger.Errorw(err.Error(), "path", path)
+			if err := o.tail(path, 0); err != nil {
+				o.Logger.Errorw(err.Error(), "loadingExistingDir", path)
 			}
 		}
 	}
@@ -89,7 +91,11 @@ func (o *Observer) observe() {
 	for {
 		select {
 		case e := <-o.containerWatcher.Events:
-			o.Logger.Debugf("Received event: %v", e.String())
+			if e.Name == "" {
+				continue
+			}
+
+			o.Logger.Debugf("Received event: %#v", e)
 			if e.Op&fsnotify.Create != fsnotify.Create {
 				continue
 			}
@@ -112,7 +118,7 @@ func (o *Observer) observe() {
 			}
 
 			if stat.Mode().IsDir() {
-				if err := o.tail(e.Name); err != nil {
+				if err := o.tail(e.Name, 1*time.Second); err != nil {
 					o.Logger.Error(err)
 				}
 			}
@@ -127,14 +133,18 @@ func (o *Observer) observe() {
 
 // tail starts a goroutine that tails the container's JSON log file in the
 // given directory.
-func (o *Observer) tail(dirpath string) error {
+func (o *Observer) tail(dirpath string, wait time.Duration) error {
 	containerID := path.Base(dirpath)
 	logfilename := fmt.Sprintf(path.Join(dirpath, containerID+"-json.log"))
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(wait)
 
 	// Ensure the json log file exists
 	if f, err := os.Open(logfilename); err != nil {
+		if os.IsNotExist(err) {
+			o.Logger.Infof("Container logfile %#v does not exist", logfilename)
+			return nil
+		}
 		return err
 	} else {
 		f.Close()
@@ -160,10 +170,15 @@ func (o *Observer) tail(dirpath string) error {
 				o.Logger.Error(fmt.Errorf("Tailing %v: %v", logfilename, line.Err))
 				continue
 			}
+
 			if err := o.record(line, containerID); err != nil {
 				o.Logger.Error(err)
 			}
+
+			o.Logger.Debug("Recorded line")
 		}
+
+		o.Logger.Debug("Done tailing %v", logfilename)
 	}()
 
 	return nil
@@ -173,12 +188,12 @@ func (o *Observer) tail(dirpath string) error {
 func (o *Observer) record(l *tail.Line, containerID string) error {
 	var de dockerJSONLogEntry
 	if err := json.Unmarshal([]byte(l.Text), &de); err != nil {
-		return err
+		return fmt.Errorf("Unmarshaling Docker log entry: %v", err)
 	}
 
 	var ze parse.ZapJSONLogEntry
 	if err := json.Unmarshal([]byte(de.Log), &ze); err != nil {
-		return err
+		return fmt.Errorf("Unmarshaling Zap log entry from Docker entry: %v", err)
 	}
 
 	level := ze.GetString("level")
@@ -203,6 +218,7 @@ func (o *Observer) record(l *tail.Line, containerID string) error {
 		p.Tags = append(p.Tags, raven.Tag{Key: "timestamp_comes_from", Value: "tail_time"})
 	}
 
+	o.Logger.Debug("Capturing packet: %#v", p)
 	o.Sentry.Capture(p, nil)
 
 	return nil
