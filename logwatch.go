@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/jonstaryuk/raven-go"
 	"github.com/kelseyhightower/envconfig"
@@ -38,7 +40,20 @@ func main() {
 		panic(err)
 	}
 
-	sentry, err := raven.New(config.SentryDsn)
+	var dsn string
+	if strings.HasPrefix(config.SentryDsn, "https://") {
+		// DSN literal
+		dsn = config.SentryDsn
+	} else {
+		// Not a DSN literal, assume it's a path to a file that contains the DSN
+		data, err := ioutil.ReadFile(config.SentryDsn)
+		if err != nil {
+			panic(err)
+		}
+		dsn = strings.TrimSpace(string(data))
+	}
+
+	sentry, err := raven.New(dsn)
 	if err != nil {
 		panic(err)
 	}
