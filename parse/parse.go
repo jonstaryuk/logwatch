@@ -3,6 +3,7 @@ package parse // import "github.com/jonstaryuk/logwatch/parse"
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jonstaryuk/raven-go"
 )
@@ -34,7 +35,7 @@ func (ze *ZapJSONLogEntry) Stacktrace() (st *raven.Stacktrace) {
 	for i := 0; i < len(lines); i += 2 {
 		var f raven.StacktraceFrame
 
-		frameinfo := strings.Split(lines[i], "/")
+		frameinfo := strings.Split(strings.TrimSpace(lines[i]), "/")
 		funcinfo := strings.SplitN(frameinfo[len(frameinfo)-1], ".", 2)
 		f.Module = strings.Join(frameinfo[:len(frameinfo)-1], "/") + "/" + funcinfo[0]
 		if len(funcinfo) > 1 {
@@ -64,4 +65,31 @@ func (ze *ZapJSONLogEntry) Stacktrace() (st *raven.Stacktrace) {
 	}
 
 	return
+}
+
+func (ze *ZapJSONLogEntry) RavenPacket(containerID string) *raven.Packet {
+	p := raven.Packet{
+		Message: ze.GetString("msg"),
+
+		Level:  raven.Severity(ze.GetString("level")),
+		Logger: ze.GetString("logger"),
+
+		Platform:   "go",
+		Culprit:    ze.GetString("caller"),
+		ServerName: containerID,
+		Release:    ze.GetString("release"),
+		Extra:      *ze,
+
+		Interfaces: []raven.Interface{ze.Stacktrace()},
+	}
+
+	if ts, ok := (*ze)["ts"]; ok {
+		if tsfloat, ok := ts.(float64); ok {
+			t := time.Unix(int64(tsfloat), int64(tsfloat*1000000000)%1000000000)
+			p.Timestamp = raven.Timestamp(t)
+			p.Tags = append(p.Tags, raven.Tag{Key: "timestamp_comes_from", Value: "zap_entry"})
+		}
+	}
+
+	return &p
 }

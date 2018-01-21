@@ -1,22 +1,40 @@
 package parse_test
 
 import (
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonstaryuk/raven-go"
 
 	"github.com/jonstaryuk/logwatch/parse"
 )
 
-const example = `
-polygraph/vendor/github.com/uber/jaeger-client-go/log/zap.(*Logger).Error
-    /go/src/polygraph/vendor/github.com/uber/jaeger-client-go/log/zap/logger.go:33
-polygraph/vendor/github.com/uber/jaeger-client-go.(*remoteReporter).processQueue.func1
-    /go/src/polygraph/vendor/github.com/uber/jaeger-client-go/reporter.go:257
-`
+func TestZapGetString(t *testing.T) {
+	ze := parse.ZapJSONLogEntry{"foo": 1, "bar": "baz", "qux": []int{1, 2, 3}}
 
-func TestStacktrace(t *testing.T) {
+	expected := map[string]string{"foo": "", "bar": "baz", "qux": "", "asdf": ""}
+
+	actual := map[string]string{}
+	for k := range expected {
+		actual[k] = ze.GetString(k)
+	}
+
+	if diff := cmp.Diff(expected, actual); diff != "" {
+		t.Error(diff)
+	}
+}
+
+func TestZapStacktrace(t *testing.T) {
+	exampleStacktrace := `
+	polygraph/vendor/github.com/uber/jaeger-client-go/log/zap.(*Logger).Error
+	    /go/src/polygraph/vendor/github.com/uber/jaeger-client-go/log/zap/logger.go:33
+	polygraph/vendor/github.com/uber/jaeger-client-go.(*remoteReporter).processQueue.func1
+	    /go/src/polygraph/vendor/github.com/uber/jaeger-client-go/reporter.go:257
+	`
+
 	expectedFrames := []raven.StacktraceFrame{
 		{
 			Filename:     "/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/reporter.go",
@@ -39,9 +57,44 @@ func TestStacktrace(t *testing.T) {
 		expected.Frames = append(expected.Frames, &ff)
 	}
 
-	ze := parse.ZapJSONLogEntry(map[string]interface{}{"stacktrace": example})
+	ze := parse.ZapJSONLogEntry(map[string]interface{}{"stacktrace": exampleStacktrace})
 
 	if diff := cmp.Diff(expected, ze.Stacktrace()); diff != "" {
 		t.Error(diff)
+	}
+}
+
+func TestZapRavenPacket(t *testing.T) {
+	entry := `{"level":"error","ts":1516491077,"logger":"foobar","caller":"baz/qux.go:33","msg":"oh no","release":"abcdefg"}`
+	unmarshaled := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(entry), &unmarshaled); err != nil {
+		t.Fatal(err)
+	}
+	expected := raven.Packet{
+		Message:   "oh no",
+		Timestamp: raven.Timestamp(time.Unix(1516491077, 0)),
+
+		Level:  raven.ERROR,
+		Logger: "foobar",
+
+		Platform:   "go",
+		Culprit:    "baz/qux.go:33",
+		ServerName: "job123",
+		Release:    "abcdefg",
+		Extra:      unmarshaled,
+		Tags:       []raven.Tag{{Key: "timestamp_comes_from", Value: "zap_entry"}},
+
+		Interfaces: []raven.Interface{&raven.Stacktrace{Frames: []*raven.StacktraceFrame{}}},
+	}
+
+	ze := parse.ZapJSONLogEntry(unmarshaled)
+	actual := (&ze).RavenPacket("job123")
+
+	if diff := cmp.Diff(expected, *actual, cmpopts.IgnoreFields(raven.Packet{}, "Timestamp")); diff != "" {
+		t.Error(diff)
+	}
+
+	if time.Time(expected.Timestamp) != time.Time(actual.Timestamp) {
+		t.Error(time.Time(expected.Timestamp), time.Time(actual.Timestamp))
 	}
 }

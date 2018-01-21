@@ -114,13 +114,40 @@ func (o *Observer) observe() {
 		o.Done <- true
 	}()
 
+	// Find existing directories and tail their log files
+
+	// Watch for new directories
 	for {
 		select {
-		case event := <-o.ContainerWatcher.Events:
-			o.Logger.Debugf("Received event: %v", event.String())
-			if err := o.handleDirEvent(event); err != nil {
-				o.Logger.Error(err)
+		case e := <-o.ContainerWatcher.Events:
+			o.Logger.Debugf("Received event: %v", e.String())
+			if e.Op&fsnotify.Create != fsnotify.Create {
+				continue
 			}
+
+			f, err := os.Open(e.Name)
+			if err != nil {
+				o.Logger.Error(err)
+				continue
+			}
+
+			stat, err := f.Stat()
+			if err != nil {
+				o.Logger.Error(err)
+				continue
+			}
+
+			if err := f.Close(); err != nil {
+				o.Logger.Error(err)
+				continue
+			}
+
+			if stat.Mode().IsDir() {
+				if err := o.tail(e.Name); err != nil {
+					o.Logger.Error(err)
+				}
+			}
+
 		case err := <-o.ContainerWatcher.Errors:
 			if err != nil {
 				o.Logger.Error(err)
@@ -129,64 +156,44 @@ func (o *Observer) observe() {
 	}
 }
 
-// handleDirEvent checks if the given filesystem event indicates that a
-// directory was created. If so, it launches a goroutine to tail the
-// container's JSON log file in that directory.
-func (o *Observer) handleDirEvent(e fsnotify.Event) error {
-	if e.Op&fsnotify.Create != fsnotify.Create {
-		return nil
-	}
+// tail starts a goroutine that tails the container's JSON log file in the
+// given directory.
+func (o *Observer) tail(dirpath string) error {
+	containerID := path.Base(dirpath)
+	logfilename := fmt.Sprintf(path.Join(dirpath, containerID+"-json.log"))
 
-	f, err := os.Open(e.Name)
+	time.Sleep(2 * time.Second)
+	t, err := tail.TailFile(logfilename, tail.Config{
+		MustExist: true,
+		Follow:    true,
+		ReOpen:    true,
+		// Location:  &tail.SeekInfo{Offset: 0, Whence: os.SEEK_END},
+	})
 	if err != nil {
 		return err
 	}
 
-	stat, err := f.Stat()
-	if err != nil {
-		return err
-	}
+	go func() {
+		o.Logger.Debugf("Tailing %v", logfilename)
 
-	if err := f.Close(); err != nil {
-		return err
-	}
+		for line := range t.Lines {
+			o.Logger.Debugf("Got line: %v", line)
 
-	if stat.Mode().IsDir() {
-		containerID := path.Base(e.Name)
-		logfilename := fmt.Sprintf(path.Join(e.Name, containerID+"-json.log"))
-
-		time.Sleep(2 * time.Second)
-		t, err := tail.TailFile(logfilename, tail.Config{
-			MustExist: true,
-			Follow:    true,
-			ReOpen:    true,
-			// Location:  &tail.SeekInfo{Offset: 0, Whence: os.SEEK_END},
-		})
-		if err != nil {
-			return err
-		}
-
-		go func() {
-			o.Logger.Debugf("Tailing %v", logfilename)
-
-			for line := range t.Lines {
-				o.Logger.Debugf("Got line: %v", line)
-
-				if line.Err != nil {
-					o.Logger.Error(fmt.Errorf("Tailing %v: %v", logfilename, line.Err))
-					continue
-				}
-				if err := o.log(line, containerID); err != nil {
-					o.Logger.Error(err)
-				}
+			if line.Err != nil {
+				o.Logger.Error(fmt.Errorf("Tailing %v: %v", logfilename, line.Err))
+				continue
 			}
-		}()
-	}
+			if err := o.record(line, containerID); err != nil {
+				o.Logger.Error(err)
+			}
+		}
+	}()
 
 	return nil
 }
 
-func (o *Observer) log(l *tail.Line, containerID string) error {
+// record handles a new log entry.
+func (o *Observer) record(l *tail.Line, containerID string) error {
 	var de dockerJSONLogEntry
 	if err := json.Unmarshal([]byte(l.Text), &de); err != nil {
 		return err
@@ -194,7 +201,7 @@ func (o *Observer) log(l *tail.Line, containerID string) error {
 
 	var ze parse.ZapJSONLogEntry
 	if err := json.Unmarshal([]byte(de.Log), &ze); err != nil {
-		return o.logRaw(de.Log)
+		return err
 	}
 
 	level := ze.GetString("level")
@@ -202,31 +209,11 @@ func (o *Observer) log(l *tail.Line, containerID string) error {
 		return nil
 	}
 
-	p := raven.Packet{
-		Message: ze.GetString("msg"),
+	p := ze.RavenPacket(containerID)
 
-		Level:  raven.Severity(level),
-		Logger: ze.GetString("logger"),
-
-		Platform:   "go",
-		Culprit:    ze.GetString("caller"),
-		ServerName: containerID,
-		Release:    ze.GetString("release"),
-		Extra:      ze,
-
-		Interfaces: []raven.Interface{ze.Stacktrace()},
-	}
-
-	// Try to use the zap entry timestamp.
-	if ts, ok := ze["ts"]; ok {
-		if tsfloat, ok := ts.(float64); ok {
-			t := time.Unix(int64(tsfloat), int64(tsfloat*1000000000)%1000000000)
-			p.Timestamp = raven.Timestamp(t)
-			p.Tags = append(p.Tags, raven.Tag{Key: "timestamp_comes_from", Value: "zap_entry"})
-		}
-	}
-	// Fall back to the Docker entry timestamp.
-	if p.Timestamp == raven.Timestamp(time.Time{}) {
+	// If there was no timestamp in the JSON log entry, fall back to the
+	// Docker entry timestamp
+	if p.Timestamp == zeroTime {
 		ts, err := time.Parse(time.RFC3339Nano, de.Time)
 		if err == nil {
 			p.Timestamp = raven.Timestamp(ts)
@@ -234,19 +221,13 @@ func (o *Observer) log(l *tail.Line, containerID string) error {
 		}
 	}
 	// Fall back to the tail time.
-	if p.Timestamp == raven.Timestamp(time.Time{}) {
+	if p.Timestamp == zeroTime {
 		p.Timestamp = raven.Timestamp(l.Time)
 		p.Tags = append(p.Tags, raven.Tag{Key: "timestamp_comes_from", Value: "tail_time"})
 	}
 
-	o.Sentry.Capture(&p, nil)
+	o.Sentry.Capture(p, nil)
 
-	return nil
-}
-
-// logRaw handles non-JSON log entries.
-func (o *Observer) logRaw(entry string) error {
-	// TODO
 	return nil
 }
 
@@ -255,3 +236,5 @@ type dockerJSONLogEntry struct {
 	Stream string `json:"stream"`
 	Time   string `json:"time"`
 }
+
+var zeroTime = raven.Timestamp(time.Time{})
