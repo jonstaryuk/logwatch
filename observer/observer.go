@@ -53,7 +53,7 @@ func New(dir string, sentry *raven.Client, log *zap.SugaredLogger) (*Observer, e
 	// Find existing directories
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("Reading dir to find existing dirs:", err)
+		return nil, fmt.Errorf("Reading dir to find existing container dirs: %v", err)
 	}
 	for _, file := range files {
 		if file.IsDir() {
