@@ -27,13 +27,14 @@ type Observer struct {
 	Sentry *raven.Client
 	Done   chan bool
 	Logger *zap.SugaredLogger
+	Debug  bool
 
 	containerWatcher *fsnotify.Watcher
 }
 
 // New creates and starts an Observer for the given directory, which should
 // typically be /var/lib/docker/containers.
-func New(dir string, sentry *raven.Client, log *zap.SugaredLogger) (*Observer, error) {
+func New(dir string, sentry *raven.Client, log *zap.SugaredLogger, debug bool) (*Observer, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -48,6 +49,7 @@ func New(dir string, sentry *raven.Client, log *zap.SugaredLogger) (*Observer, e
 		Sentry:           sentry,
 		Done:             make(chan bool),
 		Logger:           log,
+		Debug:            debug,
 	}
 
 	// Find existing directories
@@ -156,6 +158,9 @@ func (o *Observer) tail(dir string, wait time.Duration, existing bool) error {
 	tcfg := tail.Config{MustExist: true, Follow: true, ReOpen: true}
 	if !existing {
 		tcfg.Location = &tail.SeekInfo{Offset: 0, Whence: os.SEEK_END}
+	}
+	if !o.Debug {
+		tcfg.Logger = tail.DiscardingLogger
 	}
 
 	t, err := tail.TailFile(logfilename, tcfg)

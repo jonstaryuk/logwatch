@@ -70,7 +70,7 @@ func main() {
 	defer sentry.Close()
 	defer sentry.Wait()
 
-	obs, err := observer.New(dir, sentry, log)
+	obs, err := observer.New(dir, sentry, log, config.Dev)
 	if err != nil {
 		panic(err)
 	}
