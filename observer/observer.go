@@ -179,6 +179,7 @@ func (o *Observer) tail(dirpath string, wait time.Duration) error {
 		}
 
 		o.Logger.Debug("Done tailing %v", logfilename)
+		t.Cleanup()
 	}()
 
 	return nil
