@@ -35,9 +35,19 @@ func main() {
 	} else {
 		zcfg = zap.NewProductionConfig()
 	}
-	log, err := zcfg.Build()
+	zlog, err := zcfg.Build()
 	if err != nil {
 		panic(err)
+	}
+	log := zlog.Sugar().Named("logwatch")
+
+	if !config.Dev {
+		data, err := ioutil.ReadFile("/commit.sha")
+		if err != nil {
+			log.Warnf("Could not read /commit.sha: %v", err)
+		} else {
+			log = log.With("release", string(data))
+		}
 	}
 
 	var dsn string
@@ -60,7 +70,7 @@ func main() {
 	defer sentry.Close()
 	defer sentry.Wait()
 
-	obs, err := observer.New(dir, sentry, log.Sugar().Named("logwatch"))
+	obs, err := observer.New(dir, sentry, log)
 	if err != nil {
 		panic(err)
 	}
