@@ -6,11 +6,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jonstaryuk/raven-go"
 	"github.com/kelseyhightower/envconfig"
 	"go.uber.org/zap"
 
 	"github.com/jonstaryuk/logwatch/observer"
+	"github.com/jonstaryuk/logwatch/pipeline"
 )
 
 var config struct {
@@ -62,19 +62,22 @@ func main() {
 		}
 		dsn = strings.TrimSpace(string(data))
 	}
-
-	sentry, err := raven.New(dsn)
+	ravenRecorder, err := pipeline.NewRavenRecorder(dsn)
 	if err != nil {
 		panic(err)
 	}
-	defer sentry.Close()
-	defer sentry.Wait()
 
-	obs, err := observer.New(dir, sentry, log, config.Dev)
+	obs, err := observer.New(dir)
 	if err != nil {
 		panic(err)
 	}
 	defer obs.Close()
 
-	<-obs.Done
+	obs.Parser = pipeline.ZapJSONLogEntryParser{}
+	obs.Recorders = []pipeline.Recorder{ravenRecorder}
+	obs.Logger = log
+	obs.Debug = config.Dev
+
+	go obs.Observe()
+	<-obs.Done()
 }
