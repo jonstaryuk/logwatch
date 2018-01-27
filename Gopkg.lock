@@ -2,10 +2,16 @@
 
 
 [[projects]]
+  name = "cloud.google.com/go"
+  packages = ["compute/metadata","internal/version","logging","logging/apiv2","logging/internal"]
+  revision = "767c40d6a2e058483c25fa193e963a22da17236d"
+  version = "v0.18.0"
+
+[[projects]]
   name = "github.com/certifi/gocertifi"
   packages = ["."]
-  revision = "a4ab0227d360091084658029ec8ae45f989fba3e"
-  version = "2017.11.05"
+  revision = "deb3ae2ef2610fde3330947281941c562861188b"
+  version = "2018.01.18"
 
 [[projects]]
   name = "github.com/fsnotify/fsnotify"
@@ -14,10 +20,22 @@
   version = "v1.4.7"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/golang/protobuf"
+  packages = ["proto","protoc-gen-go/descriptor","ptypes","ptypes/any","ptypes/duration","ptypes/empty","ptypes/struct","ptypes/timestamp"]
+  revision = "925541529c1fa6821df4e44ce2723319eb2be768"
+
+[[projects]]
   name = "github.com/google/go-cmp"
-  packages = ["cmp","cmp/cmpopts","cmp/internal/diff","cmp/internal/function","cmp/internal/value"]
+  packages = ["cmp","cmp/internal/diff","cmp/internal/function","cmp/internal/value"]
   revision = "8099a9787ce5dc5984ed879a3bda47dc730a8e97"
   version = "v0.1.0"
+
+[[projects]]
+  name = "github.com/googleapis/gax-go"
+  packages = ["."]
+  revision = "317e0006254c44a0ac427cc52a0e083ff0b9622f"
+  version = "v2.0.0"
 
 [[projects]]
   name = "github.com/hpcloud/tail"
@@ -29,7 +47,7 @@
   branch = "master"
   name = "github.com/jonstaryuk/raven-go"
   packages = ["."]
-  revision = "9614c5f43ea8fd344d644e8ea7b6061f86f25779"
+  revision = "563b81fc02b75d664e54da31f787c2cc2186780b"
 
 [[projects]]
   name = "github.com/kelseyhightower/envconfig"
@@ -63,9 +81,57 @@
 
 [[projects]]
   branch = "master"
+  name = "golang.org/x/net"
+  packages = ["context","context/ctxhttp","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace"]
+  revision = "0ed95abb35c445290478a5348a7b38bb154135fd"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/oauth2"
+  packages = [".","google","internal","jws","jwt"]
+  revision = "a032972e28060ca4f5644acffae3dfc268cc09db"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/sync"
+  packages = ["semaphore"]
+  revision = "fd80eb99c8f653c847d294a001bdf2a3a6f768f5"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "2c42eef0765b9837fbdab12011af7830f55f88f0"
+  revision = "ff2a66f350cefa5c93a634eadb5d25bb60c85a9c"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/text"
+  packages = ["collate","collate/build","internal/colltab","internal/gen","internal/tag","internal/triegen","internal/ucd","language","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
+  revision = "e19ae1496984b1c655b8044a65c0300a3c878dd3"
+
+[[projects]]
+  branch = "master"
+  name = "google.golang.org/api"
+  packages = ["googleapi/transport","internal","iterator","option","support/bundler","transport","transport/grpc","transport/http"]
+  revision = "725ebdd8d55504ed411febb9bdfa3194d1fa2e96"
+
+[[projects]]
+  name = "google.golang.org/appengine"
+  packages = [".","internal","internal/app_identity","internal/base","internal/datastore","internal/log","internal/modules","internal/remote_api","internal/socket","internal/urlfetch","socket","urlfetch"]
+  revision = "150dc57a1b433e64154302bdc40b6bb8aefa313a"
+  version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  name = "google.golang.org/genproto"
+  packages = ["googleapis/api/annotations","googleapis/api/distribution","googleapis/api/label","googleapis/api/metric","googleapis/api/monitoredres","googleapis/logging/type","googleapis/logging/v2","googleapis/rpc/status","protobuf/field_mask"]
+  revision = "4eb30f4778eed4c258ba66527a0d4f9ec8a36c45"
+
+[[projects]]
+  name = "google.golang.org/grpc"
+  packages = [".","balancer","balancer/base","balancer/roundrobin","codes","connectivity","credentials","credentials/oauth","encoding","grpclb/grpc_lb_v1/messages","grpclog","internal","keepalive","metadata","naming","peer","resolver","resolver/dns","resolver/passthrough","stats","status","tap","transport"]
+  revision = "6b51017f791ae1cfbec89c52efdf444b13b550ef"
+  version = "v1.9.2"
 
 [[projects]]
   name = "gopkg.in/fsnotify.v1"
@@ -82,6 +148,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "08279e5dc7d1952b14354c1bfdb937114e4052eaf847630247ea61a4848fe941"
+  inputs-digest = "0decd40ffa294673c7bb22cef024813038d4f7b5db170c5e9c23a5f4b3eed877"
   solver-name = "gps-cdcl"
   solver-version = 1

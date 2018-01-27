@@ -6,7 +6,6 @@ import (
 
 type RavenEntry interface {
 	Entry
-	Logger() string
 	Culprit() string
 	Release() string
 	Stacktrace() (st *raven.Stacktrace)

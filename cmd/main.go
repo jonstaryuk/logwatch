@@ -1,20 +1,24 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"io/ioutil"
 	"os"
 	"strings"
 
+	"cloud.google.com/go/logging"
 	"github.com/kelseyhightower/envconfig"
 	"go.uber.org/zap"
 
 	"github.com/jonstaryuk/logwatch"
+	"github.com/jonstaryuk/logwatch/gcp"
 )
 
 var config struct {
-	Dev       bool
-	SentryDsn string `required:"true" split_words:"true"`
+	Dev          bool
+	SentryDsn    string `required:"true" split_words:"true"`
+	GcpProjectId string `required:"true" split_words:"true"`
 }
 
 func main() {
@@ -66,6 +70,11 @@ func main() {
 		panic(err)
 	}
 
+	gcpClient, err := logging.NewClient(context.Background(), config.GcpProjectId)
+	if err != nil {
+		panic(err)
+	}
+
 	obs, err := logwatch.NewObserver(dir)
 	if err != nil {
 		panic(err)
@@ -73,7 +82,10 @@ func main() {
 	defer obs.Close()
 
 	obs.Parser = logwatch.ZapJSONLogEntryParser{}
-	obs.Recorders = []logwatch.Recorder{ravenRecorder}
+	obs.Recorders = []logwatch.Recorder{
+		ravenRecorder,
+		gcp.Recorder{Client: gcpClient},
+	}
 	obs.Logger = log
 	obs.Debug = config.Dev
 

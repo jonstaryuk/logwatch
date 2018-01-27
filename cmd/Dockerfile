@@ -8,6 +8,7 @@ RUN go install github.com/jonstaryuk/logwatch/cmd
 RUN git rev-parse HEAD | tr -d '\n' > /commit.sha
 
 FROM alpine
+RUN apk --no-cache add ca-certificates
 WORKDIR /app
 COPY --from=compiled /commit.sha /commit.sha
 COPY --from=compiled /go/bin/cmd .

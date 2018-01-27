@@ -18,6 +18,7 @@ type Entry interface {
 	Level() string
 	Message() string
 	Timestamp() time.Time         // May return ZeroTime
+	Logger() string               // e.g. application or module name
 	Data() map[string]interface{} // Misc structured data
 }
 
