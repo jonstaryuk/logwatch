@@ -1,4 +1,4 @@
-package pipeline
+package logwatch
 
 import (
 	"github.com/jonstaryuk/raven-go"

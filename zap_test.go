@@ -1,11 +1,10 @@
-package pipeline_test
+package logwatch_test
 
 import (
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	// "github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonstaryuk/raven-go"
 
 	"github.com/jonstaryuk/logwatch/pipeline"

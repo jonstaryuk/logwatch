@@ -9,8 +9,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"go.uber.org/zap"
 
-	"github.com/jonstaryuk/logwatch/observer"
-	"github.com/jonstaryuk/logwatch/pipeline"
+	"github.com/jonstaryuk/logwatch"
 )
 
 var config struct {
@@ -62,19 +61,19 @@ func main() {
 		}
 		dsn = strings.TrimSpace(string(data))
 	}
-	ravenRecorder, err := pipeline.NewRavenRecorder(dsn)
+	ravenRecorder, err := logwatch.NewRavenRecorder(dsn)
 	if err != nil {
 		panic(err)
 	}
 
-	obs, err := observer.New(dir)
+	obs, err := logwatch.NewObserver(dir)
 	if err != nil {
 		panic(err)
 	}
 	defer obs.Close()
 
-	obs.Parser = pipeline.ZapJSONLogEntryParser{}
-	obs.Recorders = []pipeline.Recorder{ravenRecorder}
+	obs.Parser = logwatch.ZapJSONLogEntryParser{}
+	obs.Recorders = []logwatch.Recorder{ravenRecorder}
 	obs.Logger = log
 	obs.Debug = config.Dev
 

@@ -1,6 +1,6 @@
 // Package observer provides tools for collecting and parsing logs written by
 // Docker's `json-file` logging driver.
-package observer // import "github.com/jonstaryuk/logwatch/observer"
+package logwatch
 
 import (
 	"encoding/json"
@@ -16,16 +16,14 @@ import (
 	"github.com/hpcloud/tail"
 	"github.com/jonstaryuk/raven-go"
 	"go.uber.org/zap"
-
-	"github.com/jonstaryuk/logwatch/pipeline"
 )
 
 // An Observer watches a Docker metadata directory, tails the log files of
 // running containers, parses log entries as they come in, and forwards them
 // to other services.
 type Observer struct {
-	Parser    pipeline.Parser
-	Recorders []pipeline.Recorder
+	Parser    Parser
+	Recorders []Recorder
 
 	// Meta-logging observer events
 	Logger *zap.SugaredLogger
@@ -36,9 +34,9 @@ type Observer struct {
 	done    chan bool
 }
 
-// New creates an Observer for the given directory, which should typically be
+// NewObserver creates an Observer for the given directory, which should typically be
 // /var/lib/docker/containers.
-func New(dir string) (*Observer, error) {
+func NewObserver(dir string) (*Observer, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -215,7 +213,7 @@ func (o *Observer) tail(dir string, wait time.Duration, existing bool) error {
 
 // record handles a new log entry.
 func (o *Observer) record(l *tail.Line, containerID string) error {
-	var de pipeline.DockerJSONLogEntry
+	var de DockerJSONLogEntry
 	if err := json.Unmarshal([]byte(l.Text), &de); err != nil {
 		return fmt.Errorf("Unmarshaling Docker log entry: %v", err)
 	}
@@ -225,7 +223,7 @@ func (o *Observer) record(l *tail.Line, containerID string) error {
 		return fmt.Errorf("parser: %v", err)
 	}
 
-	c := pipeline.EntryContext{
+	c := EntryContext{
 		ContainerID:  containerID,
 		FallbackTime: l.Time,
 	}
