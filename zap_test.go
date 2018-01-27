@@ -7,23 +7,23 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonstaryuk/raven-go"
 
-	"github.com/jonstaryuk/logwatch/pipeline"
+	"github.com/jonstaryuk/logwatch"
 )
 
 func TestZapEntryParser(t *testing.T) {
-	de := pipeline.DockerJSONLogEntry{
+	de := logwatch.DockerJSONLogEntry{
 		Log:    "{\"level\":\"error\",\"ts\":1516231863.1643379,\"logger\":\"scraper\",\"caller\":\"zap/logger.go:33\",\"msg\":\"test\",\"release\":\"abc123\",\"stacktrace\":\"polygraph/vendor/github.com/uber/jaeger-client-go/log/zap.(*Logger).Error\\n\\t/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/log/zap/logger.go:33\\npolygraph/vendor/github.com/uber/jaeger-client-go.(*remoteReporter).processQueue.func1\\n\\t/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/reporter.go:257\\npolygraph/vendor/github.com/uber/jaeger-client-go.(*remoteReporter).processQueue\\n\\t/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/reporter.go:267\"}\n",
 		Stream: "stderr",
 		Time:   "2018-01-17T23:31:03.164678054Z",
 	}
 	// t1 := time.Date(1, 0, 0, 0, 0, 0, 0, time.Local)
-	// c := pipeline.EntryContext{ContainerID: "foobar", FallbackTime: t1}
-	actual, err := pipeline.ZapJSONLogEntryParser{}.Parse(de)
+	// c := logwatch.EntryContext{ContainerID: "foobar", FallbackTime: t1}
+	actual, err := logwatch.ZapJSONLogEntryParser{}.Parse(de)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expected := &pipeline.ZapJSONLogEntry{
+	expected := &logwatch.ZapJSONLogEntry{
 		"level":                "error",
 		"ts":                   1516231863.1643379,
 		"logger":               "scraper",
@@ -40,7 +40,7 @@ func TestZapEntryParser(t *testing.T) {
 }
 
 func TestZapEntry(t *testing.T) {
-	var e pipeline.RavenEntry = &pipeline.ZapJSONLogEntry{
+	var e logwatch.RavenEntry = &logwatch.ZapJSONLogEntry{
 		"level":                "error",
 		"ts":                   1516231863.0,
 		"logger":               "scraper",
@@ -112,7 +112,7 @@ func TestZapEntry(t *testing.T) {
 // 		Interfaces: []raven.Interface{&raven.Stacktrace{Frames: []*raven.StacktraceFrame{}}},
 // 	}
 
-// 	ze := pipeline.ZapJSONLogEntry(unmarshaled)
+// 	ze := logwatch.ZapJSONLogEntry(unmarshaled)
 // 	actual := (&ze).RavenPacket("job123")
 
 // 	if diff := cmp.Diff(expected, *actual, cmpopts.IgnoreFields(raven.Packet{}, "Timestamp")); diff != "" {
