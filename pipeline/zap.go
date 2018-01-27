@@ -20,18 +20,18 @@ func (zp ZapJSONLogEntryParser) Parse(de DockerJSONLogEntry) (Entry, error) {
 
 	// If there was no timestamp in the zap log entry, fall back to the Docker
 	// entry timestamp
-	ts, err := time.Parse(time.RFC3339Nano, de.Time)
-	if err == nil {
-		(*ze)["ts"] = ts.UnixNano()
-		(*ze)["timestamp_comes_from"] = "docker_entry"
+	if ze.Timestamp() == ZeroTime {
+		ts, err := time.Parse(time.RFC3339Nano, de.Time)
+		if err == nil {
+			(*ze)["ts"] = float64(ts.UnixNano()) / float64(1000000000)
+			(*ze)["timestamp_comes_from"] = "docker_entry"
+		}
 	}
 
 	return ze, nil
 }
 
 type ZapJSONLogEntry map[string]interface{}
-
-var _ RavenEntry = &ZapJSONLogEntry{} // ensure it implements RavenEntry
 
 func (ze *ZapJSONLogEntry) get(key string) string {
 	value, ok := (*ze)[key]

@@ -2,6 +2,7 @@ package pipeline_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	// "github.com/google/go-cmp/cmp/cmpopts"
@@ -10,15 +11,60 @@ import (
 	"github.com/jonstaryuk/logwatch/pipeline"
 )
 
-func TestZapStacktrace(t *testing.T) {
-	exampleStacktrace := `
-	polygraph/vendor/github.com/uber/jaeger-client-go/log/zap.(*Logger).Error
-	    /go/src/polygraph/vendor/github.com/uber/jaeger-client-go/log/zap/logger.go:33
-	polygraph/vendor/github.com/uber/jaeger-client-go.(*remoteReporter).processQueue.func1
-	    /go/src/polygraph/vendor/github.com/uber/jaeger-client-go/reporter.go:257
-	`
+func TestZapEntryParser(t *testing.T) {
+	de := pipeline.DockerJSONLogEntry{
+		Log:    "{\"level\":\"error\",\"ts\":1516231863.1643379,\"logger\":\"scraper\",\"caller\":\"zap/logger.go:33\",\"msg\":\"test\",\"release\":\"abc123\",\"stacktrace\":\"polygraph/vendor/github.com/uber/jaeger-client-go/log/zap.(*Logger).Error\\n\\t/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/log/zap/logger.go:33\\npolygraph/vendor/github.com/uber/jaeger-client-go.(*remoteReporter).processQueue.func1\\n\\t/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/reporter.go:257\\npolygraph/vendor/github.com/uber/jaeger-client-go.(*remoteReporter).processQueue\\n\\t/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/reporter.go:267\"}\n",
+		Stream: "stderr",
+		Time:   "2018-01-17T23:31:03.164678054Z",
+	}
+	// t1 := time.Date(1, 0, 0, 0, 0, 0, 0, time.Local)
+	// c := pipeline.EntryContext{ContainerID: "foobar", FallbackTime: t1}
+	actual, err := pipeline.ZapJSONLogEntryParser{}.Parse(de)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	expectedFrames := []raven.StacktraceFrame{
+	expected := &pipeline.ZapJSONLogEntry{
+		"level":                "error",
+		"ts":                   1516231863.1643379,
+		"logger":               "scraper",
+		"caller":               "zap/logger.go:33",
+		"msg":                  "test",
+		"release":              "abc123",
+		"stacktrace":           "polygraph/vendor/github.com/uber/jaeger-client-go/log/zap.(*Logger).Error\n\t/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/log/zap/logger.go:33\npolygraph/vendor/github.com/uber/jaeger-client-go.(*remoteReporter).processQueue.func1\n\t/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/reporter.go:257\npolygraph/vendor/github.com/uber/jaeger-client-go.(*remoteReporter).processQueue\n\t/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/reporter.go:267",
+		"timestamp_comes_from": "zap_entry",
+	}
+
+	if diff := cmp.Diff(expected, actual); diff != "" {
+		t.Error(diff)
+	}
+}
+
+func TestZapEntry(t *testing.T) {
+	var e pipeline.RavenEntry = &pipeline.ZapJSONLogEntry{
+		"level":                "error",
+		"ts":                   1516231863.0,
+		"logger":               "scraper",
+		"caller":               "zap/logger.go:33",
+		"msg":                  "test",
+		"release":              "abc123",
+		"stacktrace":           "polygraph/vendor/github.com/uber/jaeger-client-go/log/zap.(*Logger).Error\n\t/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/log/zap/logger.go:33\npolygraph/vendor/github.com/uber/jaeger-client-go.(*remoteReporter).processQueue.func1\n\t/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/reporter.go:257",
+		"timestamp_comes_from": "zap_entry",
+	}
+
+	for _, diff := range []string{
+		cmp.Diff("error", e.Level()),
+		cmp.Diff("test", e.Message()),
+		cmp.Diff(time.Unix(1516231863, 0), e.Timestamp()),
+		cmp.Diff("zap/logger.go:33", e.Culprit()),
+		cmp.Diff("abc123", e.Release()),
+	} {
+		if diff != "" {
+			t.Error(diff)
+		}
+	}
+
+	expfs := []raven.StacktraceFrame{
 		{
 			Filename:     "/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/reporter.go",
 			Function:     "(*remoteReporter).processQueue.func1",
@@ -34,15 +80,12 @@ func TestZapStacktrace(t *testing.T) {
 			AbsolutePath: "/go/src/polygraph/vendor/github.com/uber/jaeger-client-go/log/zap/logger.go",
 		},
 	}
-	expected := &raven.Stacktrace{}
-	for _, f := range expectedFrames {
+	expst := &raven.Stacktrace{}
+	for _, f := range expfs {
 		ff := f
-		expected.Frames = append(expected.Frames, &ff)
+		expst.Frames = append(expst.Frames, &ff)
 	}
-
-	ze := pipeline.ZapJSONLogEntry(map[string]interface{}{"stacktrace": exampleStacktrace})
-
-	if diff := cmp.Diff(expected, ze.Stacktrace()); diff != "" {
+	if diff := cmp.Diff(expst, e.Stacktrace()); diff != "" {
 		t.Error(diff)
 	}
 }
