@@ -1,4 +1,4 @@
-// Package observer provides tools for collecting and parsing logs written by
+// Package logwatch provides tools for collecting and parsing logs written by
 // Docker's `json-file` logging driver.
 package logwatch
 
